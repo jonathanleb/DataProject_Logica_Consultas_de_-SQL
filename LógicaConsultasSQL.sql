@@ -28,7 +28,7 @@ apellido. */
 
 select "first_name" as nombre , "last_name" as apellido
 from "actor" 
-where  "last_name" = 'ALLEN';
+where  "last_name" like '%ALLEN%';
 
 /* 7. Encuentra la cantidad total de películas en cada clasificación de la tabla 
 “filmˮ y muestra la clasificación junto con el recuento. */
@@ -108,7 +108,7 @@ película con título ‘Egg Igbyʼ */
 
 select  concat( a."first_name",' ', a."last_name") as nombre_actores , f."title"
 from "actor" a
-inner join "film_actor" fa on a."actor_id" = fa."actor_id" film
+inner join "film_actor" fa on a."actor_id" = fa."actor_id"
 inner join "film" f on fa."film_id" = f."film_id"
 where f."title" = 'EGG IGBY' ;
 
@@ -167,7 +167,7 @@ order by "cantidad_alquileres" desc;
 
 select 
     "title" as "titulo_pelicula",
-    "length" as "promedio"
+    "length" as "duracion"
 from "film"
 where "length" > (select avg("length") from "film");
 
@@ -196,7 +196,7 @@ from "payment";
 
 /* 27. ¿Qué películas se alquilan por encima del precio medio? */
 
-select "title" as "titulo_pelicula","rental_rate" as "precio_medio"
+select "title" as "titulo_pelicula","rental_rate" as "tarifa_alquiler"
 from "film"
 where "rental_rate" > (select avg("rental_rate") from "film") ;
 
@@ -212,11 +212,15 @@ having count(*) > 40;
 mostrar la cantidad disponible. */
 
 select 
-    f."title" as "titulo_peliculas",
-    count(i."inventory_id") as "cantidad_disponible"
+  f."title" as "titulo_de_pelicula",
+  count(i."inventory_id") as "cantidad_disponible"
 from "film" f
 left join "inventory" i on f."film_id" = i."film_id"
-group by f."title";
+left join "rental" r on i."inventory_id" = r."inventory_id" 
+           and r."return_date" is null
+where r."rental_id" is null
+group by f."title"
+order by "cantidad_disponible" desc;
 
 /* 30. Obtener los actores y el número de películas en las que ha actuado. */
 
@@ -259,7 +263,7 @@ order by a."last_name", a."first_name";
 alquiler. */
 
 select 
-    f."title"as "titualo pelicula",
+    f."title"as "titulo_pelicula",
     r."rental_id",
     r."rental_date" as "rentado",
     r."return_date" as "devuelto"
@@ -273,18 +277,20 @@ order by f."title", r."rental_date";
 /* 34. Encuentra los 5 clientes que más dinero se hayan gastado con nosotros. */
 
 select 
-    concat(c."first_name" , ' ' , c."last_name") as "nombre_cliente",
-    sum(p."amount") as "total_gastado"
-from "payment" p
-inner join "customer" c 
-         on p."customer_id" = c."customer_id"
-group by c."first_name", c."last_name"
-order by "total_gastado" desc
+  c."customer_id" as "id",
+  c."first_name" as "nombre", 
+  c."last_name" as "apellido", 
+  sum(p."amount") as "total_pagado"
+from "customer" c
+inner join "payment" p on c."customer_id" = p."customer_id"
+group by c."customer_id", c."first_name", c."last_name"
+order by "total_pagado" desc
 limit 5;
 
 /* 35. Selecciona todos los actores cuyo primer nombre es 'Johnny' */
 
 select 
+    "actor_id" as "id",
     "first_name" as "nombre",
     "last_name" as " apellido"
 from "actor"
@@ -294,9 +300,10 @@ where "first_name" = 'JOHNNY';
 Apellido. */
 
 select 
-    a."first_name" as "nombre",
-    a."last_name" as "apellido"
-from "actor" a;
+    "actor_id" as "id",
+    "first_name" as "nombre",
+    "last_name" as "apellido"
+from "actor";
 
 /* 37. Encuentra el ID del actor más bajo y más alto en la tabla actor. */
 
@@ -409,29 +416,28 @@ order by a."last_name", a."first_name";
 que han participado. */
 
 select 
-    a."first_name" as "nombre",
-    a."last_name" as "apellido",
-    count(fa."film_id") as "cantidad_de_peliculas"
+  a."actor_id" as "id",
+  a."first_name" as "nombre", 
+  a."last_name" as "apellido", 
+  count(fa."film_id") as "cantidad_peliculas"
 from "actor" a
 inner join "film_actor" fa 
         on a."actor_id" = fa."actor_id"
-group by a."first_name", a."last_name"
-order by "cantidad_de_peliculas" desc;
+group by a."actor_id", a."first_name", a."last_name"
+order by "cantidad_peliculas" desc;
 
 /* 48  Crea una vista llamada “actor_num_peliculasˮ que muestre los nombres 
 de los actores y el número de películas en las que han participado.*/
 
 create view "actor_num_peliculas" as
 select 
-    a."first_name" as "nombre",
-    a."last_name" as "apellido",
-    count(fa."film_id") as "cantidad_de_peliculas"
+  a."actor_id" as "id",
+  a."first_name" as "nombre", 
+  a."last_name" as "apellido", 
+  count(fa."film_id") as "cantidad_peliculas"
 from "actor" a
-inner join "film_actor" fa 
-        on a."actor_id" = fa."actor_id"
-group by a."first_name", a."last_name"
-order by "cantidad_de_peliculas" desc;
-
+inner join "film_actor" fa on a."actor_id" = fa."actor_id"
+group by a."actor_id", a."first_name", a."last_name";
 
 select *
 from actor_num_peliculas anp 
@@ -440,13 +446,14 @@ from actor_num_peliculas anp
 /* 49 Calcula el número total de alquileres realizados por cada cliente */
 
 select 
+    c."customer_id" as "id",
     c."first_name" as "nombre",
     c."last_name" as "apellido",
     count(r."rental_id") as "numero_de_alquileres"
 from "customer" c
 left join "rental" r 
        on c."customer_id" = r."customer_id"
-group by c."first_name", c."last_name"
+group by c."customer_id", c."first_name", c."last_name"
 order by "numero_de_alquileres" desc;
 
 /* 50. Calcula la duración total de las películas en la categoría 'Action'  */
@@ -538,25 +545,28 @@ películas que se alquilaron después de que la película ‘Spartacus
 Cheaperʼ se alquilara por primera vez. Ordena los resultados 
 alfabéticamente por apellido. */
 
-select distinct 
-    a."first_name" as "nombre",
+select 
+ a."first_name" as "nombre",
     a."last_name" as "apellido"
 from "actor" a
 inner join "film_actor" fa 
-         on a."actor_id" = fa."actor_id"
+        on a."actor_id" = fa."actor_id"
+inner join "film" f 
+        on fa."film_id" = f."film_id"
 inner join "inventory" i 
-         on fa."film_id" = i."film_id"
+        on f."film_id" = i."film_id"
 inner join "rental" r 
-         on i."inventory_id" = r."inventory_id"
+        on i."inventory_id" = r."inventory_id"
 where r."rental_date" > (
-        select min(r2."rental_date")
-        from "film" f2
-        inner join "inventory" i2 
-                on f2."film_id" = i2."film_id"
-        inner join "rental" r2 
-                on i2."inventory_id" = r2."inventory_id"
-        where f2."title" = 'SPARTACUS CHEAPER')
-order by a."last_name" asc;
+    select min(rental_date)
+    from "rental" r2
+    inner join "inventory" i2 
+            on r2."inventory_id" = i2."inventory_id"
+    inner join "film" f2 
+            on i2."film_id" = f2."film_id"
+    where f2."title" = 'SPARTACUS CHEAPER')
+group by a."actor_id", a."first_name", a."last_name"
+order by a."last_name", a."first_name";
 
 /* 56.  Encuentra el nombre y apellido de los actores que no han actuado en 
 ninguna película de la categoría ‘Musicʼ. */
@@ -613,6 +623,7 @@ order by f."title" asc;
 películas distintas. Ordena los resultados alfabéticamente por apellido.*/
 
 select 
+    c."customer_id",
     c."first_name" as "nombre",
     c."last_name" as "apellido",
     count(distinct f."film_id") as "peliculas_diferentes"
@@ -623,7 +634,7 @@ inner join "inventory" i
         on r."inventory_id" = i."inventory_id"
 inner join "film" f 
         on i."film_id" = f."film_id"
-group by c."first_name", c."last_name"
+group by c."customer_id", c."first_name", c."last_name"
 having count(distinct f."film_id") >= 7
 order by c."last_name" asc;
 
